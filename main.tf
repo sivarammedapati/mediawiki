@@ -125,8 +125,8 @@ resource "aws_security_group" "web_server_sg" {
   }
   egress {
     from_port       = 0
-    to_port         = 65535
-    protocol        = "tcp"
+    to_port         = 0
+    protocol        = "-1"
     cidr_blocks     = ["0.0.0.0/0"]
   }
 }
@@ -160,6 +160,27 @@ resource "aws_instance" "jump_instance" {
   associate_public_ip_address = "true"
   availability_zone = "ap-south-1a"
   subnet_id = "${aws_subnet.pubsub.id}"
+  provisioner "file" {
+    source      = "./key.pem"
+    destination = "/home/centos/key.pem"
+  connection {
+    host = self.public_ip    
+    type     = "ssh"
+    user     = "centos"
+    private_key = "${file("./key.pem")}"
+  }
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "chmod 600 /home/centos/key.pem"
+    ]
+    connection {
+    host = self.public_ip
+    type     = "ssh"
+    user     = "centos"
+    private_key = "${file("./key.pem")}"
+  }
+  }
   tags = {
     Name = "Jump Host"
   }
