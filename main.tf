@@ -2,12 +2,17 @@
 provider "aws" {
   region  = "ap-south-1"
 }
-
+variable "ips" {
+    default = {
+        "0" = "10.0.1.35"
+        "1" = "10.0.1.36"
+    }
+}
 variable "web_instance_count" {
-  default = "2"
+  default = "1"
 }
 variable "db_instance_count" {
-  default = "1"
+  default = "0"
 }
 # Create a VPC
 resource "aws_vpc" "main" {
@@ -125,7 +130,7 @@ resource "aws_security_group" "web_server_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]
+    cidr_blocks = ["0.0.0.0/0"]
   }
   ingress {
     from_port   = 443
@@ -174,11 +179,70 @@ resource "aws_security_group" "db_server_sg" {
     cidr_blocks     = ["0.0.0.0/0"]
   }
 }
+resource "aws_instance" "web_instance" {
+  count         = "${var.web_instance_count}"
+  ami           = "ami-02e60be79e78fef21"
+  private_ip = "${lookup(var.ips,count.index)}"
+  associate_public_ip_address = "true"
+  instance_type = "t2.micro"
+  vpc_security_group_ids = ["${aws_security_group.web_server_sg.id}"]
+  key_name = "clikey"
+  availability_zone = "ap-south-1a"
+  subnet_id = "${aws_subnet.pubsub.id}"
+  provisioner "file" {
+    source      = "./key.pem"
+    destination = "/home/centos/key.pem"
+  connection {
+    host = self.public_ip
+    type     = "ssh"
+    user     = "centos"
+    private_key = "${file("./key.pem")}"
+  }
+  }
+  provisioner "file" {
+    source      = "./script.sh"
+    destination = "/home/centos/script.sh"
+  connection {
+    host = self.public_ip
+    type     = "ssh"
+    user     = "centos"
+    private_key = "${file("./key.pem")}"
+  }
+  }
+   provisioner "file" {
+    source      = "./LocalSettings.php"
+    destination = "/home/centos/LocalSettings.php"
+  connection {
+    host = self.public_ip
+    type     = "ssh"
+    user     = "centos"
+    private_key = "${file("./key.pem")}"
+  }
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "chmod 600 /home/centos/key.pem",
+      "chmod +x /home/centos/script.sh",
+      "sudo sh script.sh"
+    ]
+    connection {
+    host = self.public_ip
+    type     = "ssh"
+    user     = "centos"
+    private_key = "${file("./key.pem")}"
+  }
+  }
+  tags = {
+    Name = "Web Server ${count.index + 1}"
+  }
+}
+/*
 resource "aws_instance" "jump_instance" {
   ami           = "ami-02e60be79e78fef21"
   instance_type = "t2.micro"
   vpc_security_group_ids = ["${aws_security_group.jump_server_sg.id}"]
   key_name = "clikey"
+  private_ip = "10.0.1.30"
   associate_public_ip_address = "true"
   availability_zone = "ap-south-1a"
   subnet_id = "${aws_subnet.pubsub.id}"
@@ -192,9 +256,30 @@ resource "aws_instance" "jump_instance" {
     private_key = "${file("./key.pem")}"
   }
   }
+  provisioner "file" {
+    source      = "./script.sh"
+    destination = "/home/centos/script.sh"
+  connection {
+    host = self.public_ip
+    type     = "ssh"
+    user     = "centos"
+    private_key = "${file("./key.pem")}"
+  }
+  }
+   provisioner "file" {
+    source      = "./LocalSettings.php"
+    destination = "/home/centos/LocalSettings.php"
+  connection {
+    host = self.public_ip
+    type     = "ssh"
+    user     = "centos"
+    private_key = "${file("./key.pem")}"
+  }
+  }
   provisioner "remote-exec" {
     inline = [
-      "chmod 600 /home/centos/key.pem"
+      "chmod 600 /home/centos/key.pem",
+      "scp -i /home/centos/key.pem /home/centos/script.sh centos@10.0.1.35:~"
     ]
     connection {
     host = self.public_ip
@@ -207,19 +292,7 @@ resource "aws_instance" "jump_instance" {
     Name = "Jump Host"
   }
 }
-resource "aws_instance" "web_instance" {
-  count         = "${var.web_instance_count}"
-  ami           = "ami-02e60be79e78fef21"
-  associate_public_ip_address = "true"
-  instance_type = "t2.micro"
-  vpc_security_group_ids = ["${aws_security_group.web_server_sg.id}"]
-  key_name = "clikey"
-  availability_zone = "ap-south-1a"
-  subnet_id = "${aws_subnet.pubsub.id}"
-  tags = {
-    Name = "Web Server ${count.index + 1}"
-  }
-}
+*/
 resource "aws_instance" "db_instance" {
   count         = "${var.db_instance_count}"
   ami           = "ami-02e60be79e78fef21"
@@ -249,7 +322,8 @@ resource "aws_elb" "web_elb" {
     target              = "HTTP:80/"
     interval            = 30
   }
-  instances                   = ["${aws_instance.web_instance[0].id}","${aws_instance.web_instance[1].id}"]
+# instances                   = ["${aws_instance.web_instance[0].id}","${aws_instance.web_instance[1].id}"]
+  instances                   = ["${aws_instance.web_instance[0].id}"]
   cross_zone_load_balancing   = true
   idle_timeout                = 400
   connection_draining         = true
