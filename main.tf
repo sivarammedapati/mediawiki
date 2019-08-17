@@ -179,6 +179,10 @@ resource "aws_security_group" "db_server_sg" {
     cidr_blocks     = ["0.0.0.0/0"]
   }
 }
+resource "aws_key_pair" "deployer" {
+  key_name   = "deployer-key"
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4U6jrIWgHoARLQnpxsd1hlD/NljB2PgTz61AOXXUjZV05a7xPWUp9G++uk0ASOZBU6d2EwlQDccd01vgRQLZZw0hzLJFWnurbeTLLSA8qil5Z+mXDJml/WRvgrE2M9uwhVDLmUW+UcAoQjaENiFDlNK36znN1wMdaQGWTZRlSQEeUumplxoxNn9qsieAgIvkokoV8NkGrpWAL/N640XEChGd7xZxv9qIhO4bNlHed4gjq69F4yc7XEZt5nqA8DfnBIzKn6XBb0u1NgDnueEG8sIOcI0bNvmMECddSVT/JeMdbxelidGvCAB6HZSFwXvHe4Pht6RPEMtgmw3uexiy7 email@example.com"
+}
 resource "aws_instance" "web_instance" {
   count         = "${var.web_instance_count}"
   ami           = "ami-02e60be79e78fef21"
@@ -186,7 +190,7 @@ resource "aws_instance" "web_instance" {
   associate_public_ip_address = "true"
   instance_type = "t2.micro"
   vpc_security_group_ids = ["${aws_security_group.web_server_sg.id}"]
-  key_name = "clikey"
+  key_name = "${aws_key_pair.deployer.key_name}"
   availability_zone = "ap-south-1a"
   subnet_id = "${aws_subnet.pubsub.id}"
   provisioner "file" {
@@ -241,7 +245,7 @@ resource "aws_instance" "jump_instance" {
   ami           = "ami-02e60be79e78fef21"
   instance_type = "t2.micro"
   vpc_security_group_ids = ["${aws_security_group.jump_server_sg.id}"]
-  key_name = "clikey"
+  key_name = "${aws_key_pair.deployer.key_name}"
   private_ip = "10.0.1.30"
   associate_public_ip_address = "true"
   availability_zone = "ap-south-1a"
@@ -298,7 +302,7 @@ resource "aws_instance" "db_instance" {
   ami           = "ami-02e60be79e78fef21"
   instance_type = "t2.micro"
   vpc_security_group_ids = ["${aws_security_group.db_server_sg.id}"]
-  key_name = "clikey"
+  key_name = "${aws_key_pair.deployer.key_name}"  
   availability_zone = "ap-south-1a"
   subnet_id = "${aws_subnet.prisub.id}"
   tags = {
