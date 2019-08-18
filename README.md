@@ -14,9 +14,16 @@ Configure your AWS credentials with default region as ap-south-1
 aws configure
 ```
 
-Initalize terraform in project cloned dirctory
+Initalize terraform in project cloned directory
 
 ```
 terraform init
 ```
 
+### Deployment
+
+Following command creates infrastrucute, installs packages and deploys mediawiki web and db servers
+
+```
+terraform apply
+```
