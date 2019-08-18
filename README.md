@@ -8,7 +8,7 @@ These instructions will get you a mediawiki website up and running on AWS server
 
 ### Prerequisites
 
-Configure your AWS credentials with default region as ap-south-1
+Configure your AWS credentials with default region as **ap-south-1**
 
 ```
 aws configure
