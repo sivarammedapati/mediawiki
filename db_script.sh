@@ -15,5 +15,7 @@ systemctl start mariadb
 mysql -u root -e "CREATE USER 'wiki'@'localhost' IDENTIFIED BY 'wiki';"
 mysql -u root -e "CREATE DATABASE wikidb;"
 mysql -u root -e "GRANT ALL PRIVILEGES ON wikidb.* TO 'wiki'@'localhost';"
+mysql -u root -e "GRANT ALL PRIVILEGES ON wikidb.* TO 'wiki'@'l0.0.1.35';"
+mysql -u root -e "GRANT ALL PRIVILEGES ON wikidb.* TO 'wiki'@'10.0.1.36';"
 mysql -u root -e "FLUSH PRIVILEGES;"
 systemctl enable mariadb
