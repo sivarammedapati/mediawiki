@@ -12,7 +12,7 @@ variable "web_instance_count" {
   default = "1"
 }
 variable "db_instance_count" {
-  default = "0"
+  default = "1"
 }
 # Create a VPC
 resource "aws_vpc" "main" {
@@ -183,6 +183,20 @@ resource "aws_key_pair" "deployer" {
   key_name   = "deployer-key"
   public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4U6jrIWgHoARLQnpxsd1hlD/NljB2PgTz61AOXXUjZV05a7xPWUp9G++uk0ASOZBU6d2EwlQDccd01vgRQLZZw0hzLJFWnurbeTLLSA8qil5Z+mXDJml/WRvgrE2M9uwhVDLmUW+UcAoQjaENiFDlNK36znN1wMdaQGWTZRlSQEeUumplxoxNn9qsieAgIvkokoV8NkGrpWAL/N640XEChGd7xZxv9qIhO4bNlHed4gjq69F4yc7XEZt5nqA8DfnBIzKn6XBb0u1NgDnueEG8sIOcI0bNvmMECddSVT/JeMdbxelidGvCAB6HZSFwXvHe4Pht6RPEMtgmw3uexiy7 email@example.com"
 }
+resource "aws_instance" "db_instance" {
+  count         = "${var.db_instance_count}"
+  ami           = "ami-02e60be79e78fef21"
+  private_ip = "10.0.2.40"
+  instance_type = "t2.micro"
+  vpc_security_group_ids = ["${aws_security_group.db_server_sg.id}"]
+  key_name = "${aws_key_pair.deployer.key_name}"
+  availability_zone = "ap-south-1a"
+  subnet_id = "${aws_subnet.prisub.id}"
+  tags = {
+    Name = "DB Server ${count.index + 1}"
+  }
+}
+
 resource "aws_instance" "web_instance" {
   count         = "${var.web_instance_count}"
   ami           = "ami-02e60be79e78fef21"
@@ -204,8 +218,8 @@ resource "aws_instance" "web_instance" {
   }
   }
   provisioner "file" {
-    source      = "./script.sh"
-    destination = "/home/centos/script.sh"
+    source      = "./web_script.sh"
+    destination = "/home/centos/web_script.sh"
   connection {
     host = self.public_ip
     type     = "ssh"
@@ -213,6 +227,17 @@ resource "aws_instance" "web_instance" {
     private_key = "${file("./key.pem")}"
   }
   }
+  provisioner "file" {
+    source      = "./db_script.sh"
+    destination = "/home/centos/db_script.sh"
+  connection {
+    host = self.public_ip
+    type     = "ssh"
+    user     = "centos"
+    private_key = "${file("./key.pem")}"
+  }
+  }
+
    provisioner "file" {
     source      = "./LocalSettings.php"
     destination = "/home/centos/LocalSettings.php"
@@ -226,8 +251,12 @@ resource "aws_instance" "web_instance" {
   provisioner "remote-exec" {
     inline = [
       "chmod 600 /home/centos/key.pem",
-      "chmod +x /home/centos/script.sh",
-      "sudo sh script.sh"
+      "chmod +x /home/centos/web_script.sh",
+      "chmod +x /home/centos/db_script.sh",
+      "scp -i /home/centos/key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /home/centos/db_script.sh centos@10.0.2.40:/home/centos/",
+      "ssh -i /home/centos/key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null centos@10.0.2.40 -t 'sudo sh /home/centos/db_script.sh'",
+      "sudo sh web_script.sh"
+#     "ssh -i /home/centos/key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null centos@10.0.2.40 'sudo bash -s' < /home/centos/db_script.sh"
     ]
     connection {
     host = self.public_ip
@@ -297,18 +326,6 @@ resource "aws_instance" "jump_instance" {
   }
 }
 */
-resource "aws_instance" "db_instance" {
-  count         = "${var.db_instance_count}"
-  ami           = "ami-02e60be79e78fef21"
-  instance_type = "t2.micro"
-  vpc_security_group_ids = ["${aws_security_group.db_server_sg.id}"]
-  key_name = "${aws_key_pair.deployer.key_name}"  
-  availability_zone = "ap-south-1a"
-  subnet_id = "${aws_subnet.prisub.id}"
-  tags = {
-    Name = "DB Server ${count.index + 1}"
-  }
-}
 resource "aws_elb" "web_elb" {
   name = "WebServerELB"
   subnets = ["${aws_subnet.pubsub.id}"]
